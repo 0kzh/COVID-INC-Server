@@ -151,5 +151,5 @@ iso_codes = {
     "Suriname": "SR",
     "Eswatini": "SZ",
     "Togo": "TG",
-    "U.S. Virgin Islands": "VI",
+    "U.S. Virgin Islands": "VI"
 }
