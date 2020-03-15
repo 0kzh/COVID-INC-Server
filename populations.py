@@ -1,4 +1,4 @@
-iso_codes = {
+populations = {
     "China": "1386000000",
     "Italy": "60480000",
     "Iran": "81160000",
@@ -108,7 +108,7 @@ iso_codes = {
     "Uruguay": "3404189",
     "Ukraine": "42973696",
     "Channel Islands": "170499",
-    "French Polynesia": "283,007",
+    "French Polynesia": "283007",
     "Guadeloupe": "405739",
     "Honduras": "8725111",
     "Puerto Rico": "3615086",

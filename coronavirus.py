@@ -6,8 +6,8 @@ import time
 import unidecode
 import pandas as pd
 import re
-from countryinfo
 from iso_codes import iso_codes
+from populations import populations
 
 class Coronavirus():
     def __init__(self):
@@ -51,6 +51,7 @@ class Coronavirus():
 
             country = unidecode.unidecode(row[0])
             iso = iso_codes[country] if country in iso_codes else ""
+            population = populations[country] if country in populations else ""
             total_cases = this.strip(row[1])
             new_cases = this.strip(row[2])
             total_deaths = this.strip(row[3])
@@ -61,14 +62,13 @@ class Coronavirus():
 
             # all countries but diamond princess
             if iso != "DP":
-                data.append((day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, day, iso))
-        
+                data.append((day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population, day, iso))
         
         # mass insert
-        print(data)
+        # print(data)
         sql = """
-            INSERT INTO countries_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious)
-            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            INSERT INTO countries_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population)
+            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             WHERE NOT EXISTS (SELECT id FROM countries_daily WHERE day = %s AND iso = %s);
             """
         cursor.executemany(sql, tuple(data));
