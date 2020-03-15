@@ -45,13 +45,27 @@ class Coronavirus():
         today = time.gmtime()
         day = time.strftime('%Y-%m-%d', today)
         
+        # get world cases
+        numbers = soup.find_all("div", {"class": "maincounter-number"})
+        world_cases = this.strip(numbers[0].getText())
+        world_deaths = this.strip(numbers[1].getText())
+        world_recovered = this.strip(numbers[2].getText())
+
+        active = soup.find("div", {"class": "number-table-main"})
+        world_active = this.strip(active.getText())
+
+        serious = soup.find_all("span", {"class": "number-table"})[1]
+        world_serious = this.strip(serious.getText())
+
+        data.append((day, "World", "", world_cases, "-1", world_deaths, "-1", world_recovered, world_active, world_serious, "-1", day, ""))
+
         for tr in tr_elems: # Loop through rows
             td_elems = tr.find_all("td") # Each column in row
             row = [this.convertDigit(td.text.strip()) for td in td_elems]
 
             country = unidecode.unidecode(row[0])
             iso = iso_codes[country] if country in iso_codes else ""
-            population = populations[country] if country in populations else ""
+            population = populations[country] if country in populations else "-1"
             total_cases = this.strip(row[1])
             new_cases = this.strip(row[2])
             total_deaths = this.strip(row[3])
