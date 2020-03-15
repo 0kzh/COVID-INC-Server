@@ -1,172 +1,21 @@
 import requests
 from bs4 import BeautifulSoup
 import psycopg2
-from datetime import date
+from time import gmtime, strftime
+import time
 import unidecode
+import pandas as pd
 import re
-
-iso_codes = {
-    "China": "CN",
-    "Italy": "IT",
-    "Iran": "IR",
-    "S. Korea": "KR",
-    "Spain": "ES",
-    "Germany": "DE",
-    "France": "FR",
-    "USA": "US",
-    "Switzerland": "CH",
-    "UK": "GB",
-    "Norway": "NO",
-    "Sweden": "SE",
-    "Netherlands": "NL",
-    "Denmark": "DK",
-    "Japan": "JP",
-    "Diamond Princess": "",
-    "Belgium": "BE",
-    "Austria": "AT",
-    "Qatar": "QA",
-    "Australia": "AU",
-    "Canada": "CA",
-    "Malaysia": "MY",
-    "Greece": "GR",
-    "Finland": "FI",
-    "Bahrain": "BH",
-    "Singapore": "SG",
-    "Israel": "IL",
-    "Czechia": "CZ",
-    "Slovenia": "SI",
-    "Portugal": "PT",
-    "Iceland": "IS",
-    "Brazil": "BR",
-    "Hong Kong": "HK",
-    "Ireland": "IE",
-    "Romania": "RO",
-    "Estonia": "EE",
-    "Philippines": "PH",
-    "Iraq": "IQ",
-    "Egypt": "EG",
-    "Kuwait": "KW",
-    "Poland": "PL",
-    "Saudi Arabia": "SA",
-    "San Marino": "SM",
-    "India": "IN",
-    "Indonesia": "ID",
-    "Lebanon": "LB",
-    "UAE": "AE",
-    "Thailand": "TH",
-    "Chile": "CL",
-    "Russia": "RS",
-    "Taiwan": "TW",
-    "Vietnam": "VN",
-    "Luxembourg": "LU",
-    "Serbia": "RS",
-    "Argentina": "AR",
-    "Slovakia": "SK",
-    "Bulgaria": "BG",
-    "Brunei": "BN",
-    "Croatia": "HR",
-    "Albania": "AL",
-    "Peru": "PE",
-    "South Africa": "ZA",
-    "Palestine": "PS",
-    "Algeria": "DZ",
-    "Panama": "PA",
-    "Pakistan": "PK",
-    "Georgia": "GE",
-    "Hungary": "HU",
-    "Ecuador": "EC",
-    "Belarus": "BY",
-    "Costa Rica": "CR",
-    "Latvia": "LV",
-    "Mexico": "MX",
-    "Cyprus": "CY",
-    "Colombia": "CO",
-    "Senegal": "SN",
-    "Bosnia and Herzegovina": "BA",
-    "Oman": "OM",
-    "Morocco": "MA",
-    "Armenia": "AM",
-    "Tunisia": "TN",
-    "Malta": "MT",
-    "Azerbaijan": "AZ",
-    "North Macedonia": "MK",
-    "Moldova": "MD",
-    "Afghanistan": "AF",
-    "Dominican Republic": "DO",
-    "Macao": "MO",
-    "Sri Lanka": "LK",
-    "Bolivia": "BO",
-    "Maldives": "MV",
-    "Martinique": "MQ",
-    "Lithuania": "LT",
-    "Faeroe Islands": "FO",
-    "Jamaica": "JM",
-    "Cambodia": "KH",
-    "New Zealand": "NZ",
-    "French Guiana": "GF",
-    "Paraguay": "PY",
-    "Kazakhstan": "KZ",
-    "Reunion": "RE",
-    "Turkey": "TR",
-    "Bangladesh": "BD",
-    "Cuba": "CU",
-    "Liechtenstein": "LI",
-    "Uruguay": "UY",
-    "Ukraine": "UA",
-    "Channel Islands": "KY",
-    "French Polynesia": "PF",
-    "Guadeloupe": "GP",
-    "Honduras": "HN",
-    "Puerto Rico": "PR",
-    "Monaco": "MC",
-    "Nigeria": "NG",
-    "Aruba": "AW",
-    "Burkina Faso": "BF",
-    "Cameroon": "CM",
-    "Ivory Coast": "CI",
-    "Curacao": "CW",
-    "DRC": "CD",
-    "Ghana": "GH",
-    "Namibia": "NA",
-    "Saint Martin": "MF",
-    "Seychelles": "SC",
-    "Trinidad and Tobago": "TT",
-    "Venezuela": "VE",
-    "Guyana": "GY",
-    "Sudan": "SD",
-    "Andorra": "AD",
-    "Jordan": "JO",
-    "Nepal": "NP",
-    "Antigua and Barbuda": "AG",
-    "Bhutan": "BT",
-    "Cayman Islands": "KY",
-    "Ethiopia": "ET",
-    "Gabon": "GA",
-    "Gibraltar": "GI",
-    "Guatemala": "GT",
-    "Guinea": "GN",
-    "Vatican City": "VA",
-    "Kenya": "KE",
-    "Mauritania": "MR",
-    "Mayotte": "YT",
-    "Mongolia": "MN",
-    "Rwanda": "RW",
-    "St. Barth": "BL",
-    "Saint Lucia": "LC",
-    "St. Vincent Grenadines": "VC",
-    "Suriname": "SR",
-    "Eswatini": "SZ",
-    "Togo": "TG",
-    "U.S. Virgin Islands": "VI",
-}
+from countryinfo
+from iso_codes import iso_codes
 
 class Coronavirus():
     def __init__(self):
         print("initializing")
         self.db = psycopg2.connect(
             database="coronavirus",
-            user="",
-            password="",
+            user="***REMOVED***",
+            password="***REMOVED***",
             host="***REMOVED***",
             port='***REMOVED***'
         )
@@ -192,15 +41,16 @@ class Coronavirus():
 
         data = []
         cursor = this.db.cursor()
-        print(cursor)
-        today = date.today()
-        day = today.strftime('%Y-%m-%d')
+        print(dir(cursor))
+        today = time.gmtime()
+        day = time.strftime('%Y-%m-%d', today)
+        
         for tr in tr_elems: # Loop through rows
             td_elems = tr.find_all("td") # Each column in row
             row = [this.convertDigit(td.text.strip()) for td in td_elems]
 
             country = unidecode.unidecode(row[0])
-            iso = iso_codes[country]
+            iso = iso_codes[country] if country in iso_codes else ""
             total_cases = this.strip(row[1])
             new_cases = this.strip(row[2])
             total_deaths = this.strip(row[3])
@@ -209,17 +59,23 @@ class Coronavirus():
             active = this.strip(row[6])
             serious = this.strip(row[7])
 
-            sql = """INSERT INTO country_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')""".format(day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious)
-            print(sql)
-            cursor.execute(sql)
-            this.db.commit()
-            # pd.read_sql(sql, con=connection)
-            # print(str(country) + ";" + str(iso) + ";" + str(total_cases) + ";" + str(new_cases) + ";" + str(total_deaths) + ";" + str(new_deaths) + ";" + str(recovered) + ";" + str(active) + ";" + str(serious))
-            # print('"%s": "%s",') % (country, iso.alpha_2 if iso else " ");
-            # data.append([this.convertDigit(td.text.strip()) for td in td_elems])
+            # all countries but diamond princess
+            if iso != "DP":
+                data.append((day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, day, iso))
+        
+        
+        # mass insert
+        print(data)
+        sql = """
+            INSERT INTO countries_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious)
+            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            WHERE NOT EXISTS (SELECT id FROM countries_daily WHERE day = %s AND iso = %s);
+            """
+        cursor.executemany(sql, tuple(data));
+        this.db.commit()
 
-        # np_array = np.array(data)
-        # print(np_array)
+        cursor.close()
+        this.db.close()
 
 
 
