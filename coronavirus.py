@@ -8,6 +8,13 @@ import pandas as pd
 import re
 from iso_codes import iso_codes
 from populations import populations
+from selenium import webdriver
+import dateparser
+
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 
 class Coronavirus():
     def __init__(self):
@@ -28,8 +35,45 @@ class Coronavirus():
     def strip(this, s):
         if s:
             return re.sub('\D', '', str(s))
-        else:
-            return 0
+        return 0
+
+    def get_news(this):
+        url = 'https://www.pharmaceutical-technology.com/news/coronavirus-a-timeline-of-how-the-deadly-outbreak-evolved'
+        cursor = this.db.cursor()
+
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        news = soup.find_all("blockquote", {"class": "cc-blockquote"})
+
+        data = []
+        for article in news:
+            try:
+                # find closest parent starting with outbreak-tabcontent
+                date_elem = article.find("p", {"class": "update-date"}).getText()
+                date_string = date_elem.split(':')[0]
+                date = dateparser.parse(date_string + " 2020") # parse human readable date into datetime obj.
+                day = date.strftime('%Y-%m-%d')
+
+                headlines = article.find_all("h2")
+                for headline in headlines:
+                    headlineText = headline.getText().rstrip().lstrip()
+                    data.append((day, headlineText, day, headlineText))
+            except AttributeError:
+                continue
+        
+        # mass insert
+        sql = """
+            INSERT INTO news (day, headline)
+            SELECT %s, %s
+            WHERE NOT EXISTS (SELECT id FROM news WHERE day = %s AND headline = %s);
+            """
+        cursor.executemany(sql, tuple(data));
+        this.db.commit()
+
+        cursor.close()
+        this.db.close()
+
 
     def get_data(this):
         url = 'https://www.worldometers.info/coronavirus/#countries'
@@ -41,7 +85,6 @@ class Coronavirus():
 
         data = []
         cursor = this.db.cursor()
-        print(dir(cursor))
         today = time.gmtime()
         day = time.strftime('%Y-%m-%d', today)
         
@@ -94,5 +137,6 @@ class Coronavirus():
 
 
 bot = Coronavirus()
-bot.get_data()
+# bot.get_data()
+bot.get_news()
 # bot.create_table()
