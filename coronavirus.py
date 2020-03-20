@@ -26,6 +26,9 @@ class Coronavirus():
             host="***REMOVED***",
             port='***REMOVED***'
         )
+    
+    def close_conn(self):
+        this.db.close()
 
     def convertDigit(this, string):
         if string.replace(",", "").isdigit():
@@ -38,7 +41,7 @@ class Coronavirus():
         return 0
 
     def get_news(this):
-        url = 'https://www.pharmaceutical-technology.com/news/coronavirus-a-timeline-of-how-the-deadly-outbreak-evolved'
+        url = 'https://www.pharmaceutical-technology.com/news/coronavirus-timeline/'
         cursor = this.db.cursor()
 
         r = requests.get(url)
@@ -72,7 +75,6 @@ class Coronavirus():
         this.db.commit()
 
         cursor.close()
-        this.db.close()
 
 
     def get_data(this):
@@ -80,7 +82,7 @@ class Coronavirus():
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "html.parser") # Parse html
 
-        table = soup.find("table", {"id": "main_table_countries"}).find_all("tbody") # table
+        table = soup.find("table", {"id": "main_table_countries_today"}).find_all("tbody") # table
         tr_elems = table[0].find_all("tr") # All rows in table
 
         data = []
@@ -100,7 +102,7 @@ class Coronavirus():
         serious = soup.find_all("span", {"class": "number-table"})[1]
         world_serious = this.strip(serious.getText())
 
-        data.append((day, "World", "", world_cases, "-1", world_deaths, "-1", world_recovered, world_active, world_serious, "-1", day, ""))
+        data.append((day, "World", "WR", world_cases, "-1", world_deaths, "-1", world_recovered, world_active, world_serious, "-1", day, ""))
 
         for tr in tr_elems: # Loop through rows
             td_elems = tr.find_all("td") # Each column in row
@@ -132,11 +134,8 @@ class Coronavirus():
         this.db.commit()
 
         cursor.close()
-        this.db.close()
-
-
 
 bot = Coronavirus()
-# bot.get_data()
+bot.get_data()
 bot.get_news()
-# bot.create_table()
+bot.close_conn()
