@@ -28,7 +28,7 @@ class Coronavirus():
         )
     
     def close_conn(self):
-        this.db.close()
+        self.db.close()
 
     def convertDigit(this, string):
         if string.replace(",", "").isdigit():
@@ -61,14 +61,24 @@ class Coronavirus():
                 headlines = article.find_all("h2")
                 for headline in headlines:
                     headlineText = headline.getText().rstrip().lstrip()
-                    data.append((day, headlineText, day, headlineText))
+
+
+                    # concat html of description tags
+                    desc = ""
+                    next_p_elem = headline.find_next_sibling("p")
+                    while next_p_elem is not None:
+                        desc += str(next_p_elem)
+                        next_p_elem = next_p_elem.find_next_sibling("p")
+                    # print(desc)
+                    # print('--------------------------------')
+                    data.append((day, headlineText, desc, day, headlineText))
             except AttributeError:
                 continue
         
         # mass insert
         sql = """
-            INSERT INTO news (day, headline)
-            SELECT %s, %s
+            INSERT INTO news (day, headline, description)
+            SELECT %s, %s, %s
             WHERE NOT EXISTS (SELECT id FROM news WHERE day = %s AND headline = %s);
             """
         cursor.executemany(sql, tuple(data));
@@ -136,6 +146,6 @@ class Coronavirus():
         cursor.close()
 
 bot = Coronavirus()
-bot.get_data()
+# bot.get_data()
 bot.get_news()
 bot.close_conn()
