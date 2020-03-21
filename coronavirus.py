@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+from bs4 import Tag
 import psycopg2
 from time import gmtime, strftime
 import time
@@ -60,17 +61,24 @@ class Coronavirus():
 
                 headlines = article.find_all("h2")
                 for headline in headlines:
+                    nextNode = headline
                     headlineText = headline.getText().rstrip().lstrip()
 
 
                     # concat html of description tags
                     desc = ""
-                    next_p_elem = headline.find_next_sibling("p")
-                    while next_p_elem is not None:
-                        desc += str(next_p_elem)
-                        next_p_elem = next_p_elem.find_next_sibling("p")
-                    # print(desc)
-                    # print('--------------------------------')
+
+                    while True:
+                        nextNode = nextNode.find_next_sibling("")
+                        try:
+                            tag_name = nextNode.name
+                        except AttributeError:
+                            tag_name = ""
+                        if tag_name == "p":
+                            desc += str(nextNode)
+                        else:
+                            break
+                    day = "2019-12-31" if headlineText == "First cases detected" else day
                     data.append((day, headlineText, desc, day, headlineText))
             except AttributeError:
                 continue
@@ -150,6 +158,6 @@ class Coronavirus():
         cursor.close()
 
 bot = Coronavirus()
-bot.get_data()
-# bot.get_news()
+# bot.get_data()
+bot.get_news()
 bot.close_conn()
