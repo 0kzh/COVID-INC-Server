@@ -88,17 +88,21 @@ class Coronavirus():
 
 
     def get_data(this):
-        url = 'https://www.worldometers.info/coronavirus/#countries'
+        url = 'https://web.archive.org/web/20200319000308/https://www.worldometers.info/coronavirus/'
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "html.parser") # Parse html
 
         table = soup.find("table", {"id": "main_table_countries_today"}).find_all("tbody") # table
+        # print(table)
         tr_elems = table[0].find_all("tr") # All rows in table
 
         data = []
         cursor = this.db.cursor()
-        today = time.gmtime()
-        day = time.strftime('%Y-%m-%d', today)
+
+        date_elem = soup.find_all(lambda tag:tag.name=="div" and "Last updated:" in tag.text)[-1].getText()
+        date_string = date_elem.replace("Last updated: ", "")
+        date = dateparser.parse(date_string) # parse human readable date into datetime obj.
+        day = date.strftime('%Y-%m-%d')
         
         # get world cases
         numbers = soup.find_all("div", {"class": "maincounter-number"})
@@ -146,6 +150,6 @@ class Coronavirus():
         cursor.close()
 
 bot = Coronavirus()
-# bot.get_data()
-bot.get_news()
+bot.get_data()
+# bot.get_news()
 bot.close_conn()
