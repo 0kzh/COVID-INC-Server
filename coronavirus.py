@@ -17,6 +17,38 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 
+import smtplib
+from email.mime.text import MIMEText
+
+def send_email_failed():
+    smtp_ssl_host = 'smtp.gmail.com'
+    smtp_ssl_port = 465
+    username = 'covidinc0@gmail.com'
+    password = '***REMOVED***'
+    sender = 'covidinc0@gmail.com'
+    targets = ['me@kelvinzhang.ca', 'william.qin51@gmail.com']
+
+    text = """
+    Hello,
+    Thank you for submitting your application and for your interest in Covid Inc, specifically the Software Engineering Intern position. We have received tens of thousands of applications for our summer internships.
+    While your skills and background are impressive, after assessing all of the candidates that applied for this position, we have decided to proceed with other applicants who more closely fit our needs at this time.
+    
+    Again, we really appreciate all of the time and effort that you took to go through the process with us and we wish you success in your search for an internship.
+    
+    Sincerely,
+    Covid Inc
+    """
+
+    msg = MIMEText(text)
+    msg['Subject'] = 'COVID Inc Scraping Failed'
+    msg['From'] = sender
+    msg['To'] = ', '.join(targets)
+
+    server = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
+    server.login(username, password)
+    server.sendmail(sender, targets, msg.as_string())
+    server.quit()
+
 class Coronavirus():
     def __init__(self):
         print("initializing")
@@ -96,10 +128,12 @@ class Coronavirus():
 
 
     def get_data(this):
-        url = 'https://web.archive.org/web/20200319000308/https://www.worldometers.info/coronavirus/'
+        url = 'https://web.archive.org/web/20200322125716/https://www.worldometers.info/coronavirus/'
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "html.parser") # Parse html
 
+        # id = table3 if 
+        #    =        if
         table = soup.find("table", {"id": "main_table_countries_today"}).find_all("tbody") # table
         # print(table)
         tr_elems = table[0].find_all("tr") # All rows in table
@@ -116,13 +150,13 @@ class Coronavirus():
         numbers = soup.find_all("div", {"class": "maincounter-number"})
         world_cases = this.strip(numbers[0].getText())
         world_deaths = this.strip(numbers[1].getText())
-        world_recovered = this.strip(numbers[2].getText())
+        world_recovered = this.strip(numbers[2].getText()) if len(numbers) >= 3 else "-1"
 
         active = soup.find("div", {"class": "number-table-main"})
-        world_active = this.strip(active.getText())
+        world_active = this.strip(active.getText()) if active is not None else "-1"
 
-        serious = soup.find_all("span", {"class": "number-table"})[1]
-        world_serious = this.strip(serious.getText())
+        serious = soup.find_all("span", {"class": "number-table"})
+        world_serious = this.strip(serious[1].getText()) if len(serious) >= 1 else "-1"
 
         data.append((day, "World", "WR", world_cases, "-1", world_deaths, "-1", world_recovered, world_active, world_serious, "-1", day, ""))
 
@@ -133,13 +167,31 @@ class Coronavirus():
             country = unidecode.unidecode(row[0])
             iso = iso_codes[country] if country in iso_codes else ""
             population = populations[country] if country in populations else "-1"
-            total_cases = this.strip(row[1])
-            new_cases = this.strip(row[2])
-            total_deaths = this.strip(row[3])
-            new_deaths = this.strip(row[4])
-            recovered = this.strip(row[5])
-            active = this.strip(row[6])
-            serious = this.strip(row[7])
+
+            if len(row) >= 8:
+                total_cases = this.strip(row[1])
+                new_cases = this.strip(row[2])
+                total_deaths = this.strip(row[3])
+                new_deaths = this.strip(row[4])
+                recovered = this.strip(row[5])
+                active = this.strip(row[6])
+                serious = this.strip(row[7])
+            elif len(row) == 6:
+                total_cases = this.strip(row[1])
+                new_cases = this.strip(row[2])
+                total_deaths = this.strip(row[3])
+                new_deaths = this.strip(row[4])
+                recovered = "-1"
+                active = "-1"
+                serious = "-1"
+            elif len(row) == 7:
+                total_cases = this.strip(row[1])
+                new_cases = this.strip(row[2])
+                total_deaths = this.strip(row[3])
+                new_deaths = this.strip(row[4])
+                recovered = this.strip(row[5])
+                active = "-1"
+                serious = this.strip(row[6])
 
             # all countries but diamond princess
             if iso != "DP":
@@ -158,6 +210,9 @@ class Coronavirus():
         cursor.close()
 
 bot = Coronavirus()
-# bot.get_data()
-bot.get_news()
-bot.close_conn()
+try:
+    bot.get_data()
+    bot.get_news()
+    bot.close_conn()
+except:
+    send_email_failed()
