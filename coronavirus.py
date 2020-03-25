@@ -5,17 +5,10 @@ import psycopg2
 from time import gmtime, strftime
 import time
 import unidecode
-import pandas as pd
 import re
 from iso_codes import iso_codes
 from populations import populations
-from selenium import webdriver
 import dateparser
-
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
 
 import smtplib
 from email.mime.text import MIMEText
