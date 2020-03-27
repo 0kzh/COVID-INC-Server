@@ -5,10 +5,17 @@ import psycopg2
 from time import gmtime, strftime
 import time
 import unidecode
+import pandas as pd
 import re
 from iso_codes import iso_codes
 from populations import populations
+from selenium import webdriver
 import dateparser
+
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 
 import smtplib
 from email.mime.text import MIMEText
@@ -45,6 +52,7 @@ def send_email_failed():
 class Coronavirus():
     def __init__(self):
         print("initializing")
+        self.driver = webdriver.Chrome()
         self.db = psycopg2.connect(
             database="coronavirus",
             user="***REMOVED***",
@@ -65,6 +73,45 @@ class Coronavirus():
         if s:
             return re.sub('\D', '', str(s))
         return 0
+
+    def get_news_2(this):
+        url = 'https://coronavirus.thebaselab.com/'
+        cursor = this.db.cursor()
+
+        this.driver.get(url)
+        delay = 10
+        try:
+            elem = WebDriverWait(this.driver, delay).until(EC.presence_of_element_located((By.CLASS_NAME, 'jumbotron')))
+        except TimeoutException:
+            print("Timeout when loading " + url)
+        soup = BeautifulSoup(this.driver.page_source, "html.parser")
+
+        news = soup.find_all("div", {"class": "jumbotron"})
+        data = []
+        for article in news:
+            # find closest parent starting with outbreak-tabcontent
+            date_elem = article.find("div", {"class": "text-right"}).getText()
+
+            date_string = date_elem.split(u'\u00b7')[0].lstrip().rstrip()
+            date = dateparser.parse(date_string) # parse human readable date into datetime obj.
+            day = date.strftime('%Y-%m-%d')
+
+            headlineText = article.find("h6").getText()
+            headlineText = headlineText.split(u"\u3011")[1]
+            desc = str(article.find("h5")).replace("h5", "p")
+            print((day, headlineText, desc, day, headlineText))
+            data.append((day, headlineText, desc, day, headlineText))
+        
+        # mass insert
+        sql = """
+            INSERT INTO news (day, headline, description)
+            SELECT %s, %s, %s
+            WHERE NOT EXISTS (SELECT id FROM news WHERE day = %s AND headline = %s);
+            """
+        cursor.executemany(sql, tuple(data));
+        this.db.commit()
+        this.driver.close()
+        cursor.close()
 
     def get_news(this):
         url = 'https://www.pharmaceutical-technology.com/news/coronavirus-timeline/'
@@ -121,7 +168,7 @@ class Coronavirus():
 
 
     def get_data(this):
-        url = 'https://web.archive.org/web/20200322125716/https://www.worldometers.info/coronavirus/'
+        url = 'https://www.worldometers.info/coronavirus/'
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "html.parser") # Parse html
 
@@ -191,7 +238,7 @@ class Coronavirus():
                 data.append((day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population, day, iso))
         
         # mass insert
-        # print(data)
+        print(data)
         sql = """
             INSERT INTO countries_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population)
             SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
@@ -204,8 +251,9 @@ class Coronavirus():
 
 bot = Coronavirus()
 try:
-    bot.get_data()
     bot.get_news()
+    bot.get_news_2()
+    bot.get_data()
     bot.close_conn()
 except:
     send_email_failed()
