@@ -48,7 +48,7 @@ iso_codes = {
     "UAE": "AE",
     "Thailand": "TH",
     "Chile": "CL",
-    "Russia": "RS",
+    "Russia": "RU",
     "Taiwan": "TW",
     "Vietnam": "VN",
     "Luxembourg": "LU",
