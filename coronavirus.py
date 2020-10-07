@@ -10,12 +10,16 @@ import re
 from iso_codes import iso_codes
 from populations import populations
 from selenium import webdriver
+from datetime import timedelta, date
 import dateparser
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
+
+from newsapi import NewsApiClient
 
 import smtplib
 from email.mime.text import MIMEText
@@ -29,14 +33,7 @@ def send_email_failed():
     targets = ['me@kelvinzhang.ca', 'william.qin51@gmail.com']
 
     text = """
-    Hello,
-    Thank you for submitting your application and for your interest in Covid Inc, specifically the Software Engineering Intern position. We have received tens of thousands of applications for our summer internships.
-    While your skills and background are impressive, after assessing all of the candidates that applied for this position, we have decided to proceed with other applicants who more closely fit our needs at this time.
-    
-    Again, we really appreciate all of the time and effort that you took to go through the process with us and we wish you success in your search for an internship.
-    
-    Sincerely,
-    Covid Inc
+    Scraping failed! Go and fix it :P
     """
 
     msg = MIMEText(text)
@@ -52,7 +49,7 @@ def send_email_failed():
 class Coronavirus():
     def __init__(self):
         print("initializing")
-        self.driver = webdriver.Chrome()
+        self.driver = webdriver.Chrome(ChromeDriverManager().install())
         self.db = psycopg2.connect(
             database="coronavirus",
             user="***REMOVED***",
@@ -63,6 +60,9 @@ class Coronavirus():
     
     def close_conn(self):
         self.db.close()
+
+    def close_driver(self):
+        self.driver.close()
 
     def convertDigit(this, string):
         if string.replace(",", "").isdigit():
@@ -108,53 +108,36 @@ class Coronavirus():
             SELECT %s, %s, %s
             WHERE NOT EXISTS (SELECT id FROM news WHERE day = %s AND headline = %s);
             """
-        cursor.executemany(sql, tuple(data));
+        cursor.executemany(sql, tuple(data))
         this.db.commit()
         this.driver.close()
         cursor.close()
 
-    def get_news(this):
-        url = 'https://www.pharmaceutical-technology.com/news/coronavirus-timeline/'
-        cursor = this.db.cursor()
+    def get_news(this, date):
+        cursor = this.db.cursor() 
+        newsapi = NewsApiClient(api_key='***REMOVED***')
 
-        r = requests.get(url)
-        soup = BeautifulSoup(r.text, "html.parser")
+        queries = ['covid-19 breaking news global']
+        fulldata = pd.DataFrame()
+        for q in queries:
+            json_data = newsapi.get_everything(q=q, language='en', from_param=date, to=date)
+            data = pd.DataFrame(json_data['articles'])
 
-        news = soup.find_all("blockquote", {"class": "cc-blockquote"})
+            if len(data)>0:
+                data['source'] = data['source'].apply(lambda x : x['name'])
+                data['publishedAt'] = pd.to_datetime(data['publishedAt'])
+                fulldata = pd.concat([fulldata,data])
 
-        data = []
-        for article in news:
-            try:
-                # find closest parent starting with outbreak-tabcontent
-                date_elem = article.find("p", {"class": "update-date"}).getText()
-                date_string = date_elem.split(':')[0]
-                date = dateparser.parse(date_string + " 2020") # parse human readable date into datetime obj.
-                day = date.strftime('%Y-%m-%d')
+        # only get 5 top headlines for that day
+        fulldata = fulldata.head(5)
 
-                headlines = article.find_all("h2")
-                for headline in headlines:
-                    nextNode = headline
-                    headlineText = headline.getText().rstrip().lstrip()
+        if len(fulldata) > 0:
+            fulldata = fulldata.drop_duplicates(subset='url').sort_values(by='publishedAt', ascending=False).reset_index()
 
+        subset = fulldata[['publishedAt', 'title', 'description', 'publishedAt', 'title']]
+        data = [tuple(x) for x in subset.to_numpy()]
 
-                    # concat html of description tags
-                    desc = ""
-
-                    while True:
-                        nextNode = nextNode.find_next_sibling("")
-                        try:
-                            tag_name = nextNode.name
-                        except AttributeError:
-                            tag_name = ""
-                        if tag_name == "p":
-                            desc += str(nextNode)
-                        else:
-                            break
-                    day = "2019-12-31" if headlineText == "First cases detected" else day
-                    data.append((day, headlineText, desc, day, headlineText))
-            except AttributeError:
-                continue
-        
+        # day, headlineText, desc, day, headlineText  
         # mass insert
         sql = """
             INSERT INTO news (day, headline, description)
@@ -167,16 +150,30 @@ class Coronavirus():
         cursor.close()
 
 
-    def get_data(this):
-        url = 'https://www.worldometers.info/coronavirus/'
+    def get_data(this, date):
+        def set_default_int(x):
+            return x if x else -1
+
+        print(f"Fetching data for {date}")
+        print("--------------------------------")
+        url = f"https://web.archive.org/web/{date}010005/https://www.worldometers.info/coronavirus/"
         r = requests.get(url)
         soup = BeautifulSoup(r.text, "html.parser") # Parse html
 
         # id = table3 if 
         #    =        if
-        table = soup.find("table", {"id": "main_table_countries_today"}).find_all("tbody") # table
-        # print(table)
-        tr_elems = table[0].find_all("tr") # All rows in table
+        table = soup.find("table", {"id": "main_table_countries_today"})
+        cols = table.find("thead").find_all("th")
+
+        col_mapping = dict()
+        for i, col in enumerate(cols):
+            header = col.get_text()
+            col_mapping[header] = i
+
+        print(col_mapping)
+
+        tbody = table.find_all("tbody") # table
+        tr_elems = tbody[0].find_all("tr") # All rows in table
 
         data = []
         cursor = this.db.cursor()
@@ -200,45 +197,35 @@ class Coronavirus():
 
         data.append((day, "World", "WR", world_cases, "-1", world_deaths, "-1", world_recovered, world_active, world_serious, "-1", day, ""))
 
+        unmapped_countries = []
         for tr in tr_elems: # Loop through rows
             td_elems = tr.find_all("td") # Each column in row
             row = [this.convertDigit(td.text.strip()) for td in td_elems]
 
-            country = unidecode.unidecode(row[0])
+            country = unidecode.unidecode(row[col_mapping['Country,Other']])
+            if not country in iso_codes and not country in populations:
+                unmapped_countries.append(country)
+
             iso = iso_codes[country] if country in iso_codes else ""
             population = populations[country] if country in populations else "-1"
 
-            if len(row) >= 8:
-                total_cases = this.strip(row[1])
-                new_cases = this.strip(row[2])
-                total_deaths = this.strip(row[3])
-                new_deaths = this.strip(row[4])
-                recovered = this.strip(row[5])
-                active = this.strip(row[6])
-                serious = this.strip(row[7])
-            elif len(row) == 6:
-                total_cases = this.strip(row[1])
-                new_cases = this.strip(row[2])
-                total_deaths = this.strip(row[3])
-                new_deaths = this.strip(row[4])
-                recovered = "-1"
-                active = "-1"
-                serious = "-1"
-            elif len(row) == 7:
-                total_cases = this.strip(row[1])
-                new_cases = this.strip(row[2])
-                total_deaths = this.strip(row[3])
-                new_deaths = this.strip(row[4])
-                recovered = this.strip(row[5])
-                active = "-1"
-                serious = this.strip(row[6])
+            total_cases = set_default_int(this.strip(row[col_mapping['TotalCases']]))
+            new_cases = set_default_int(this.strip(row[col_mapping['NewCases']]))
+            total_deaths = set_default_int(this.strip(row[col_mapping['TotalDeaths']]))
+            new_deaths = set_default_int(this.strip(row[col_mapping['NewDeaths']]))
+            recovered = set_default_int(this.strip(row[col_mapping['TotalRecovered']]))
+            active = set_default_int(this.strip(row[col_mapping['ActiveCases']]))
+            serious = set_default_int(this.strip(row[col_mapping['Serious,Critical']]))
 
             # all countries but diamond princess
-            if iso != "DP":
+            if iso != "DP" and iso != "MSZ":
                 data.append((day, country, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population, day, iso))
         
         # mass insert
-        print(data)
+        for row in range(10):
+            print(data[row])
+
+        print(f"Unmapped countries: {unmapped_countries}")
         sql = """
             INSERT INTO countries_daily (day, name, iso, total_cases, new_cases, total_deaths, new_deaths, recovered, active, serious, population)
             SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
@@ -249,11 +236,36 @@ class Coronavirus():
 
         cursor.close()
 
+        print("Completed")
+        print("--------------------------------")
+
+def daterange(start_date, end_date):
+    for n in range(int((end_date - start_date).days)):
+        yield start_date + timedelta(n)
+
+
 bot = Coronavirus()
+
+HISTORY_MODE = False
+
 try:
-    bot.get_news()
-    bot.get_news_2()
-    bot.get_data()
-    bot.close_conn()
-except:
-    send_email_failed()
+    if HISTORY_MODE:
+        start_date = date(2020, 8, 7)
+        end_date = date(2020, 9, 6)
+        for single_date in daterange(start_date, end_date):
+            formatted_date = single_date.strftime("%Y%m%d")
+            news_date = single_date.strftime("%Y-%m-%d")
+            bot.get_news(news_date)
+            #bot.get_data(formatted_date)
+        bot.close_conn()
+    else:
+        today = date.today()
+        formatted_date = today.strftime("%Y%m%d")
+        news_date = today.strftime("%Y-%m-%d")
+        bot.get_news(news_date)
+        bot.get_data(formatted_date)
+
+except Exception as e:
+    raise e
+
+bot.close_driver()
